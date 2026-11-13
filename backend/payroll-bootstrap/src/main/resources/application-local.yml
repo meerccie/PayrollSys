@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:payroll}
+    username: ${DB_USER:payroll}
+    password: ${DB_PASSWORD:payroll}
+
+app:
+  bootstrap:
+    admin-email: ${BOOTSTRAP_ADMIN_EMAIL:admin@example.com}
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:ChangeMe123!}

@@ -34,6 +34,7 @@ public final class Employee {
     private Money baseRate;
     private UUID departmentId;
     private UUID positionId;
+    private UUID supervisorId;
     private BankAccount bankAccount;
     private Set<DayOfWeek> restDays;
     private long version;
@@ -62,6 +63,36 @@ public final class Employee {
             BankAccount bankAccount,
             Set<DayOfWeek> restDays,
             long version) {
+        this(id, employeeNo, firstName, middleName, lastName, birthDate, email, phone, address,
+                tin, sssNo, philHealthNo, pagIbigNo, hireDate, separationDate, status, payBasis, baseRate,
+                departmentId, positionId, null, bankAccount, restDays, version);
+    }
+
+    public Employee(
+            UUID id,
+            String employeeNo,
+            String firstName,
+            String middleName,
+            String lastName,
+            LocalDate birthDate,
+            String email,
+            String phone,
+            String address,
+            String tin,
+            String sssNo,
+            String philHealthNo,
+            String pagIbigNo,
+            LocalDate hireDate,
+            LocalDate separationDate,
+            EmploymentStatus status,
+            PayBasis payBasis,
+            Money baseRate,
+            UUID departmentId,
+            UUID positionId,
+            UUID supervisorId,
+            BankAccount bankAccount,
+            Set<DayOfWeek> restDays,
+            long version) {
         this.id = Objects.requireNonNull(id, "id must not be null");
         this.employeeNo = requireNonBlank(employeeNo, "Employee number");
         this.firstName = requireNonBlank(firstName, "First name");
@@ -82,6 +113,7 @@ public final class Employee {
         this.baseRate = validateRate(baseRate);
         this.departmentId = departmentId;
         this.positionId = positionId;
+        this.supervisorId = validateSupervisor(this.id, supervisorId);
         this.bankAccount = bankAccount;
         this.restDays = restDays == null || restDays.isEmpty()
                 ? EnumSet.of(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
@@ -110,6 +142,33 @@ public final class Employee {
             UUID positionId,
             BankAccount bankAccount,
             Set<DayOfWeek> restDays) {
+        return create(employeeNo, firstName, middleName, lastName, birthDate, email, phone, address,
+                tin, sssNo, philHealthNo, pagIbigNo, hireDate, status, payBasis, baseRate,
+                departmentId, positionId, null, bankAccount, restDays);
+    }
+
+    public static Employee create(
+            String employeeNo,
+            String firstName,
+            String middleName,
+            String lastName,
+            LocalDate birthDate,
+            String email,
+            String phone,
+            String address,
+            String tin,
+            String sssNo,
+            String philHealthNo,
+            String pagIbigNo,
+            LocalDate hireDate,
+            EmploymentStatus status,
+            PayBasis payBasis,
+            Money baseRate,
+            UUID departmentId,
+            UUID positionId,
+            UUID supervisorId,
+            BankAccount bankAccount,
+            Set<DayOfWeek> restDays) {
         if (status == EmploymentStatus.SEPARATED) {
             throw new ValidationException("Cannot create an already separated employee");
         }
@@ -117,7 +176,7 @@ public final class Employee {
                 UUID.randomUUID(), employeeNo, firstName, middleName, lastName, birthDate,
                 email, phone, address, tin, sssNo, philHealthNo, pagIbigNo,
                 hireDate, null, status, payBasis, baseRate, departmentId, positionId,
-                bankAccount, restDays, 0L);
+                supervisorId, bankAccount, restDays, 0L);
     }
 
     public void updateProfile(
@@ -137,6 +196,31 @@ public final class Employee {
             Money baseRate,
             UUID departmentId,
             UUID positionId,
+            BankAccount bankAccount,
+            Set<DayOfWeek> restDays) {
+        updateProfile(firstName, middleName, lastName, birthDate, email, phone, address,
+                tin, sssNo, philHealthNo, pagIbigNo, status, payBasis, baseRate,
+                departmentId, positionId, this.supervisorId, bankAccount, restDays);
+    }
+
+    public void updateProfile(
+            String firstName,
+            String middleName,
+            String lastName,
+            LocalDate birthDate,
+            String email,
+            String phone,
+            String address,
+            String tin,
+            String sssNo,
+            String philHealthNo,
+            String pagIbigNo,
+            EmploymentStatus status,
+            PayBasis payBasis,
+            Money baseRate,
+            UUID departmentId,
+            UUID positionId,
+            UUID supervisorId,
             BankAccount bankAccount,
             Set<DayOfWeek> restDays) {
         if (this.status == EmploymentStatus.SEPARATED) {
@@ -161,6 +245,7 @@ public final class Employee {
         this.baseRate = validateRate(baseRate);
         this.departmentId = departmentId;
         this.positionId = positionId;
+        this.supervisorId = validateSupervisor(this.id, supervisorId);
         this.bankAccount = bankAccount;
         if (restDays != null && !restDays.isEmpty()) {
             this.restDays = EnumSet.copyOf(restDays);
@@ -177,6 +262,18 @@ public final class Employee {
         }
         this.status = EmploymentStatus.SEPARATED;
         this.separationDate = separationDate;
+    }
+
+    public void reinstate(EmploymentStatus targetStatus) {
+        if (this.status != EmploymentStatus.SEPARATED) {
+            throw new InvalidStateTransitionException("Employee is not separated");
+        }
+        EmploymentStatus restored = targetStatus == null ? EmploymentStatus.REGULAR : targetStatus;
+        if (restored == EmploymentStatus.SEPARATED) {
+            throw new ValidationException("Cannot reinstate employee with SEPARATED status");
+        }
+        this.status = restored;
+        this.separationDate = null;
     }
 
     public boolean isActiveOn(LocalDate date) {
@@ -234,6 +331,13 @@ public final class Employee {
         return firstName + " " + middleName + " " + lastName;
     }
 
+    private static UUID validateSupervisor(UUID selfId, UUID supervisorId) {
+        if (supervisorId != null && supervisorId.equals(selfId)) {
+            throw new ValidationException("An employee cannot be their own immediate supervisor");
+        }
+        return supervisorId;
+    }
+
     private static Money validateRate(Money rate) {
         Objects.requireNonNull(rate, "baseRate must not be null");
         if (!rate.isPositive()) {
@@ -269,6 +373,7 @@ public final class Employee {
     public Money getBaseRate() { return baseRate; }
     public UUID getDepartmentId() { return departmentId; }
     public UUID getPositionId() { return positionId; }
+    public UUID getSupervisorId() { return supervisorId; }
     public BankAccount getBankAccount() { return bankAccount; }
     public Set<DayOfWeek> getRestDays() { return Set.copyOf(restDays); }
     public long getVersion() { return version; }

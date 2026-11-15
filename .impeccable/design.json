@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "world": "wayfinding-cartography-signage-midnight-transit-diagram",
+  "seededFrom": {
+    "seedRef": "seed:5cedd72b2963a1c6",
+    "catalogId": "wayfinding-cartography-signage-midnight-transit-diagram",
+    "directionKey": "challenger-transit",
+    "mode": "operate"
+  },
+  "tokens": {
+    "focusRing": "2px solid #1e5bff",
+    "focusOffset": "2px",
+    "caretColor": "#1e5bff",
+    "selectionBg": "#dbeafe",
+    "selectionInk": "#0b1230",
+    "tabularNums": true,
+    "transitStripe": ["#e21d2d", "#1e5bff", "#d97706", "#16a34a"]
+  }
+}

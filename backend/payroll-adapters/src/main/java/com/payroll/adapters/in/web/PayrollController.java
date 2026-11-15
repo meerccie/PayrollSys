@@ -1,6 +1,7 @@
 package com.payroll.adapters.in.web;
 
 import com.payroll.adapters.out.security.AuthPrincipal;
+import com.payroll.application.service.AuthService;
 import com.payroll.application.service.PayPeriodService;
 import com.payroll.application.service.PayrollRunService;
 import com.payroll.application.service.PayslipService;
@@ -37,11 +38,17 @@ public class PayrollController {
     private final PayPeriodService periodService;
     private final PayrollRunService runService;
     private final PayslipService payslipService;
+    private final AuthService authService;
 
-    public PayrollController(PayPeriodService periodService, PayrollRunService runService, PayslipService payslipService) {
+    public PayrollController(
+            PayPeriodService periodService,
+            PayrollRunService runService,
+            PayslipService payslipService,
+            AuthService authService) {
         this.periodService = periodService;
         this.runService = runService;
         this.payslipService = payslipService;
+        this.authService = authService;
     }
 
     public record PayPeriodDto(UUID id, LocalDate startDate, LocalDate endDate, LocalDate payDate, PayFrequency frequency, CutoffType cutoff, int year, int periodNumber, boolean closed) {
@@ -188,15 +195,16 @@ public class PayrollController {
     }
 
     @GetMapping("/me/payslips")
-    @PreAuthorize("hasAnyRole('ADMIN','HR','EMPLOYEE')")
+    @PreAuthorize("hasAnyRole('ADMIN','HR','SUPERVISOR','EMPLOYEE')")
     public List<PayslipDto> myPayslips(Authentication auth) {
         AuthPrincipal p = AuthPrincipal.from(auth);
-        if (p.employeeId() == null) return List.of();
-        return payslipService.listByEmployee(p.employeeId()).stream().map(PayslipDto::from).toList();
+        UUID empId = authService.resolveEmployeeId(p.userId(), p.employeeId());
+        if (empId == null) return List.of();
+        return payslipService.listByEmployee(empId).stream().map(PayslipDto::from).toList();
     }
 
     @GetMapping("/payslips/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','HR','EMPLOYEE')")
+    @PreAuthorize("hasAnyRole('ADMIN','HR','SUPERVISOR','EMPLOYEE')")
     public PayslipDto getPayslip(Authentication auth, @PathVariable UUID id) {
         Payslip slip = payslipService.get(id);
         enforcePayslipAccess(auth, slip);
@@ -204,7 +212,7 @@ public class PayrollController {
     }
 
     @GetMapping(value = "/payslips/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN','HR','EMPLOYEE')")
+    @PreAuthorize("hasAnyRole('ADMIN','HR','SUPERVISOR','EMPLOYEE')")
     public ResponseEntity<byte[]> downloadPayslipPdf(Authentication auth, @PathVariable UUID id) {
         Payslip slip = payslipService.get(id);
         enforcePayslipAccess(auth, slip);
@@ -214,10 +222,13 @@ public class PayrollController {
         return ResponseEntity.ok().headers(headers).contentType(MediaType.APPLICATION_PDF).body(pdf);
     }
 
-    private static void enforcePayslipAccess(Authentication auth, Payslip slip) {
+    private void enforcePayslipAccess(Authentication auth, Payslip slip) {
         AuthPrincipal p = AuthPrincipal.from(auth);
-        if (p.role() == Role.EMPLOYEE && !slip.getEmployeeId().equals(p.employeeId())) {
-            throw new AccessDeniedException("Cannot view another employee's payslip");
+        if (p.role() == Role.EMPLOYEE || p.role() == Role.SUPERVISOR) {
+            UUID empId = authService.resolveEmployeeId(p.userId(), p.employeeId());
+            if (!slip.getEmployeeId().equals(empId)) {
+                throw new AccessDeniedException("Cannot view another employee's payslip");
+            }
         }
     }
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { apiFetch, AuthResponse, AuthUser, setAccessToken } from "./api";
+import { useQueryClient } from "@tanstack/react-query";
+import { apiFetch, AuthResponse, AuthUser, setAccessToken, setInitialAuthPromise } from "./api";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -12,13 +13,14 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }): React.ReactElement {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    (async () => {
+    const initPromise = (async (): Promise<void> => {
       try {
         const res = await apiFetch<AuthResponse>("/auth/refresh", { method: "POST" }, false);
         if (active) {
@@ -31,15 +33,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null);
         }
       } finally {
+        setInitialAuthPromise(null);
         if (active) setLoading(false);
       }
     })();
+    setInitialAuthPromise(initPromise);
     return () => {
       active = false;
     };
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string): Promise<void> => {
     const res = await apiFetch<AuthResponse>(
       "/auth/login",
       { method: "POST", body: JSON.stringify({ email, password }) },
@@ -49,14 +53,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(res.user);
   }, []);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (): Promise<void> => {
     try {
       await apiFetch<void>("/auth/logout", { method: "POST" }, false);
     } finally {
       setAccessToken(null);
       setUser(null);
+      queryClient.clear();
     }
-  }, []);
+  }, [queryClient]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout }}>

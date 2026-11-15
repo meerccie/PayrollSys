@@ -31,7 +31,7 @@ public class OrganizationController {
     }
 
     @GetMapping("/departments")
-    @PreAuthorize("hasAnyRole('ADMIN','HR','EMPLOYEE')")
+    @PreAuthorize("hasAnyRole('ADMIN','HR','SUPERVISOR','EMPLOYEE')")
     public List<DepartmentDto> listDepartments() {
         return orgService.listDepartments().stream().map(DepartmentDto::from).toList();
     }
@@ -57,7 +57,7 @@ public class OrganizationController {
     }
 
     @GetMapping("/positions")
-    @PreAuthorize("hasAnyRole('ADMIN','HR','EMPLOYEE')")
+    @PreAuthorize("hasAnyRole('ADMIN','HR','SUPERVISOR','EMPLOYEE')")
     public List<PositionDto> listPositions() {
         return orgService.listPositions().stream().map(PositionDto::from).toList();
     }

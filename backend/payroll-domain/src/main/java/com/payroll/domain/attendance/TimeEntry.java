@@ -22,6 +22,8 @@ public final class TimeEntry {
     private int undertimeMinutes;
     private DayType dayType;
     private TimeEntryStatus status;
+    private UUID leaveRequestId;
+    private String remarks;
     private long version;
 
     public TimeEntry(
@@ -38,6 +40,26 @@ public final class TimeEntry {
             DayType dayType,
             TimeEntryStatus status,
             long version) {
+        this(id, employeeId, workDate, timeIn, timeOut, regularHours, overtimeHours, nightDiffHours,
+                lateMinutes, undertimeMinutes, dayType, status, null, null, version);
+    }
+
+    public TimeEntry(
+            UUID id,
+            UUID employeeId,
+            LocalDate workDate,
+            LocalTime timeIn,
+            LocalTime timeOut,
+            BigDecimal regularHours,
+            BigDecimal overtimeHours,
+            BigDecimal nightDiffHours,
+            int lateMinutes,
+            int undertimeMinutes,
+            DayType dayType,
+            TimeEntryStatus status,
+            UUID leaveRequestId,
+            String remarks,
+            long version) {
         this.id = Objects.requireNonNull(id, "id must not be null");
         this.employeeId = Objects.requireNonNull(employeeId, "employeeId must not be null");
         this.workDate = Objects.requireNonNull(workDate, "workDate must not be null");
@@ -50,6 +72,8 @@ public final class TimeEntry {
         this.undertimeMinutes = nonNegativeInt(undertimeMinutes, "undertimeMinutes");
         this.dayType = Objects.requireNonNull(dayType, "dayType must not be null");
         this.status = Objects.requireNonNull(status, "status must not be null");
+        this.leaveRequestId = leaveRequestId;
+        this.remarks = remarks;
         this.version = version;
     }
 
@@ -67,7 +91,20 @@ public final class TimeEntry {
         return new TimeEntry(
                 UUID.randomUUID(), employeeId, workDate, timeIn, timeOut,
                 regularHours, overtimeHours, nightDiffHours,
-                lateMinutes, undertimeMinutes, dayType, TimeEntryStatus.PENDING, 0L);
+                lateMinutes, undertimeMinutes, dayType, TimeEntryStatus.PENDING, null, null, 0L);
+    }
+
+    /** Creates an approved zero-hour attendance marker for an approved leave date. */
+    public static TimeEntry forLeave(
+            UUID employeeId,
+            LocalDate workDate,
+            DayType dayType,
+            UUID leaveRequestId,
+            String remarks) {
+        return new TimeEntry(
+                UUID.randomUUID(), employeeId, workDate, null, null,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                0, 0, dayType, TimeEntryStatus.APPROVED, leaveRequestId, remarks, 0L);
     }
 
     public void update(
@@ -123,5 +160,7 @@ public final class TimeEntry {
     public int getUndertimeMinutes() { return undertimeMinutes; }
     public DayType getDayType() { return dayType; }
     public TimeEntryStatus getStatus() { return status; }
+    public UUID getLeaveRequestId() { return leaveRequestId; }
+    public String getRemarks() { return remarks; }
     public long getVersion() { return version; }
 }

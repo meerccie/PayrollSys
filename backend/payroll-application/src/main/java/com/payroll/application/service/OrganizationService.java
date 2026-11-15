@@ -41,7 +41,13 @@ public class OrganizationService {
     public Department updateDepartment(UUID id, String code, String name, boolean active) {
         return tx.execute(() -> {
             Department dept = getDepartment(id);
-            dept.update(code, name, active);
+            String normalized = code.trim().toUpperCase();
+            departments.findByCode(normalized)
+                    .filter(existing -> !existing.getId().equals(id))
+                    .ifPresent(existing -> {
+                        throw new ValidationException("Department code already exists: " + normalized);
+                    });
+            dept.update(normalized, name, active);
             return departments.save(dept);
         });
     }
@@ -72,7 +78,13 @@ public class OrganizationService {
     public Position updatePosition(UUID id, String code, String name, boolean active) {
         return tx.execute(() -> {
             Position pos = getPosition(id);
-            pos.update(code, name, active);
+            String normalized = code.trim().toUpperCase();
+            positions.findByCode(normalized)
+                    .filter(existing -> !existing.getId().equals(id))
+                    .ifPresent(existing -> {
+                        throw new ValidationException("Position code already exists: " + normalized);
+                    });
+            pos.update(normalized, name, active);
             return positions.save(pos);
         });
     }

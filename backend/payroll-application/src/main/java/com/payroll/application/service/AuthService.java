@@ -2,12 +2,14 @@ package com.payroll.application.service;
 
 import com.payroll.application.common.ClockPort;
 import com.payroll.application.common.TransactionPort;
+import com.payroll.application.ports.out.EmployeeRepository;
 import com.payroll.application.ports.out.PasswordHasher;
 import com.payroll.application.ports.out.RefreshTokenRepository;
 import com.payroll.application.ports.out.TokenIssuer;
 import com.payroll.application.ports.out.UserRepository;
 import com.payroll.domain.common.EntityNotFoundException;
 import com.payroll.domain.common.ValidationException;
+import com.payroll.domain.employee.Employee;
 import com.payroll.domain.user.Role;
 import com.payroll.domain.user.User;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +34,7 @@ public class AuthService {
     private final TransactionPort tx;
     private final ClockPort clock;
     private final Duration refreshTtl;
+    private final EmployeeRepository employees;
     private final SecureRandom random = new SecureRandom();
 
     public AuthService(
@@ -42,6 +45,18 @@ public class AuthService {
             TransactionPort tx,
             ClockPort clock,
             Duration refreshTtl) {
+        this(users, refreshTokens, passwordHasher, tokenIssuer, tx, clock, refreshTtl, null);
+    }
+
+    public AuthService(
+            UserRepository users,
+            RefreshTokenRepository refreshTokens,
+            PasswordHasher passwordHasher,
+            TokenIssuer tokenIssuer,
+            TransactionPort tx,
+            ClockPort clock,
+            Duration refreshTtl,
+            EmployeeRepository employees) {
         this.users = users;
         this.refreshTokens = refreshTokens;
         this.passwordHasher = passwordHasher;
@@ -49,6 +64,7 @@ public class AuthService {
         this.tx = tx;
         this.clock = clock;
         this.refreshTtl = refreshTtl;
+        this.employees = employees;
     }
 
     public AuthResult login(String email, String rawPassword) {
@@ -58,7 +74,7 @@ public class AuthService {
             if (!user.isActive() || !passwordHasher.matches(rawPassword, user.getPasswordHash())) {
                 throw new ValidationException("Invalid email or password");
             }
-            return issueTokens(user);
+            return issueTokens(syncEmployeeLink(user));
         });
     }
 
@@ -79,7 +95,7 @@ public class AuthService {
             if (!user.isActive()) {
                 throw new ValidationException("User account is inactive");
             }
-            return issueTokens(user);
+            return issueTokens(syncEmployeeLink(user));
         });
     }
 
@@ -105,7 +121,17 @@ public class AuthService {
     }
 
     public User getUser(UUID userId) {
-        return users.findById(userId).orElseThrow(() -> new EntityNotFoundException("User", userId));
+        return tx.execute(() -> {
+            User user = users.findById(userId).orElseThrow(() -> new EntityNotFoundException("User", userId));
+            return syncEmployeeLink(user);
+        });
+    }
+
+    public UUID resolveEmployeeId(UUID userId, UUID tokenEmployeeId) {
+        if (tokenEmployeeId != null) {
+            return tokenEmployeeId;
+        }
+        return getUser(userId).getEmployeeId();
     }
 
     public List<User> listUsers() {
@@ -121,9 +147,24 @@ public class AuthService {
             if (rawPassword == null || rawPassword.length() < 8) {
                 throw new ValidationException("Password must be at least 8 characters");
             }
-            User user = User.create(normalized, passwordHasher.hash(rawPassword), role, employeeId);
+            UUID resolvedEmployeeId = employeeId;
+            if (resolvedEmployeeId == null && employees != null) {
+                resolvedEmployeeId = employees.findByEmail(normalized).map(Employee::getId).orElse(null);
+            }
+            User user = User.create(normalized, passwordHasher.hash(rawPassword), role, resolvedEmployeeId);
             return users.save(user);
         });
+    }
+
+    private User syncEmployeeLink(User user) {
+        if (user.getEmployeeId() == null && employees != null) {
+            UUID matched = employees.findByEmail(user.getEmail()).map(Employee::getId).orElse(null);
+            if (matched != null) {
+                user.update(user.getRole(), matched, user.isActive());
+                return users.save(user);
+            }
+        }
+        return user;
     }
 
     public User updateUser(UUID id, Role role, UUID employeeId, boolean active) {

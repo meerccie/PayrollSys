@@ -1,4 +1,4 @@
-export type Role = "ADMIN" | "HR" | "EMPLOYEE";
+export type Role = "ADMIN" | "HR" | "SUPERVISOR" | "EMPLOYEE";
 
 export interface AuthUser {
   id: string;
@@ -14,14 +14,26 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
-let inMemoryToken: string | null = null;
+interface ProblemDetailBody {
+  detail?: string;
+  title?: string;
+  errors?: Record<string, string>;
+}
 
-export function setAccessToken(token: string | null) {
+let inMemoryToken: string | null = null;
+let refreshPromise: Promise<string | null> | null = null;
+let initialAuthPromise: Promise<void> | null = null;
+
+export function setAccessToken(token: string | null): void {
   inMemoryToken = token;
 }
 
 export function getAccessToken(): string | null {
   return inMemoryToken;
+}
+
+export function setInitialAuthPromise(promise: Promise<void> | null): void {
+  initialAuthPromise = promise;
 }
 
 export class ApiError extends Error {
@@ -38,20 +50,34 @@ export class ApiError extends Error {
 }
 
 async function refreshAccessToken(): Promise<string | null> {
-  const res = await fetch("/api/v1/auth/refresh", {
-    method: "POST",
-    credentials: "include",
-  });
-  if (!res.ok) {
-    inMemoryToken = null;
-    return null;
+  if (refreshPromise) {
+    return refreshPromise;
   }
-  const data = (await res.json()) as AuthResponse;
-  inMemoryToken = data.accessToken;
-  return data.accessToken;
+  refreshPromise = (async (): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/v1/auth/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        inMemoryToken = null;
+        return null;
+      }
+      const data = (await res.json()) as AuthResponse;
+      inMemoryToken = data.accessToken;
+      return data.accessToken;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
+  if (initialAuthPromise && !path.startsWith("/auth/")) {
+    await initialAuthPromise;
+  }
+
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
@@ -77,8 +103,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = 
     let detail = `Request failed (${res.status})`;
     let errors: Record<string, string> | undefined;
     try {
-      const body = await res.json();
-      detail = body.detail || body.title || detail;
+      const body = (await res.json()) as ProblemDetailBody;
+      detail = body.detail ?? body.title ?? detail;
       errors = body.errors;
     } catch {
       // ignore non-json

@@ -21,8 +21,9 @@ public class ApplicationWiringConfig {
             TokenIssuer tokenIssuer,
             TransactionPort tx,
             ClockPort clock,
-            @Value("${app.jwt.refresh-ttl:P7D}") Duration refreshTtl) {
-        return new AuthService(users, refreshTokens, passwordHasher, tokenIssuer, tx, clock, refreshTtl);
+            @Value("${app.jwt.refresh-ttl:P7D}") Duration refreshTtl,
+            EmployeeRepository employees) {
+        return new AuthService(users, refreshTokens, passwordHasher, tokenIssuer, tx, clock, refreshTtl, employees);
     }
 
     @Bean
@@ -41,8 +42,16 @@ public class ApplicationWiringConfig {
     }
 
     @Bean
-    LeaveService leaveService(LeaveTypeRepository leaveTypes, LeaveBalanceRepository balances, LeaveRequestRepository requests, TransactionPort tx, ClockPort clock) {
-        return new LeaveService(leaveTypes, balances, requests, tx, clock);
+    LeaveService leaveService(
+            LeaveTypeRepository leaveTypes,
+            LeaveBalanceRepository balances,
+            LeaveRequestRepository requests,
+            EmployeeRepository employees,
+            TimeEntryRepository timeEntries,
+            HolidayRepository holidays,
+            TransactionPort tx,
+            ClockPort clock) {
+        return new LeaveService(leaveTypes, balances, requests, employees, timeEntries, holidays, tx, clock);
     }
 
     @Bean

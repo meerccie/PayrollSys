@@ -167,6 +167,8 @@ class PayrollCalculatorTest {
         LeaveRequest req = LeaveRequest.file(emp.getId(), lwop.getId(),
                 LocalDate.of(2026, 3, 4), LocalDate.of(2026, 3, 4),
                 BigDecimal.ONE, false, "Personal");
+        req.recommendBySupervisor(UUID.randomUUID(), Instant.now(), "Recommended");
+        req.verifyByHr(UUID.randomUUID(), Instant.now(), "Policy checked");
         req.approve(UUID.randomUUID(), Instant.now());
 
         Payslip slip = calculator.calculate(context(

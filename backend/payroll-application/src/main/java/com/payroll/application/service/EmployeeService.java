@@ -14,6 +14,7 @@ import com.payroll.domain.employee.EmploymentStatus;
 import com.payroll.domain.employee.PayBasis;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -24,14 +25,14 @@ public class EmployeeService {
             LocalDate birthDate, String email, String phone, String address,
             String tin, String sssNo, String philHealthNo, String pagIbigNo,
             LocalDate hireDate, EmploymentStatus status, PayBasis payBasis, Money baseRate,
-            UUID departmentId, UUID positionId, BankAccount bankAccount, Set<DayOfWeek> restDays) {}
+            UUID departmentId, UUID positionId, UUID supervisorId, BankAccount bankAccount, Set<DayOfWeek> restDays) {}
 
     public record UpdateEmployeeCommand(
             String firstName, String middleName, String lastName,
             LocalDate birthDate, String email, String phone, String address,
             String tin, String sssNo, String philHealthNo, String pagIbigNo,
             EmploymentStatus status, PayBasis payBasis, Money baseRate,
-            UUID departmentId, UUID positionId, BankAccount bankAccount, Set<DayOfWeek> restDays) {}
+            UUID departmentId, UUID positionId, UUID supervisorId, BankAccount bankAccount, Set<DayOfWeek> restDays) {}
 
     private final EmployeeRepository employees;
     private final PayslipRepository payslips;
@@ -51,12 +52,15 @@ public class EmployeeService {
             if (employees.findByEmail(cmd.email().trim().toLowerCase()).isPresent()) {
                 throw new ValidationException("Employee email already exists: " + cmd.email());
             }
+            if (cmd.supervisorId() != null && employees.findById(cmd.supervisorId()).isEmpty()) {
+                throw new EntityNotFoundException("Supervisor Employee", cmd.supervisorId());
+            }
             Employee emp = Employee.create(
                     cmd.employeeNo(), cmd.firstName(), cmd.middleName(), cmd.lastName(),
                     cmd.birthDate(), cmd.email(), cmd.phone(), cmd.address(),
                     cmd.tin(), cmd.sssNo(), cmd.philHealthNo(), cmd.pagIbigNo(),
                     cmd.hireDate(), cmd.status(), cmd.payBasis(), cmd.baseRate(),
-                    cmd.departmentId(), cmd.positionId(), cmd.bankAccount(), cmd.restDays());
+                    cmd.departmentId(), cmd.positionId(), cmd.supervisorId(), cmd.bankAccount(), cmd.restDays());
             return employees.save(emp);
         });
     }
@@ -64,12 +68,15 @@ public class EmployeeService {
     public Employee update(UUID id, UpdateEmployeeCommand cmd) {
         return tx.execute(() -> {
             Employee emp = get(id);
+            if (cmd.supervisorId() != null && employees.findById(cmd.supervisorId()).isEmpty()) {
+                throw new EntityNotFoundException("Supervisor Employee", cmd.supervisorId());
+            }
             emp.updateProfile(
                     cmd.firstName(), cmd.middleName(), cmd.lastName(),
                     cmd.birthDate(), cmd.email(), cmd.phone(), cmd.address(),
                     cmd.tin(), cmd.sssNo(), cmd.philHealthNo(), cmd.pagIbigNo(),
                     cmd.status(), cmd.payBasis(), cmd.baseRate(),
-                    cmd.departmentId(), cmd.positionId(), cmd.bankAccount(), cmd.restDays());
+                    cmd.departmentId(), cmd.positionId(), cmd.supervisorId(), cmd.bankAccount(), cmd.restDays());
             return employees.save(emp);
         });
     }
@@ -82,12 +89,29 @@ public class EmployeeService {
         });
     }
 
+    public Employee reinstate(UUID id, EmploymentStatus targetStatus) {
+        return tx.execute(() -> {
+            Employee emp = get(id);
+            emp.reinstate(targetStatus);
+            return employees.save(emp);
+        });
+    }
+
     public Employee get(UUID id) {
         return employees.findById(id).orElseThrow(() -> new EntityNotFoundException("Employee", id));
     }
 
+    public List<Employee> listBySupervisor(UUID supervisorId) {
+        return employees.findBySupervisorId(supervisorId);
+    }
+
     public PageResult<Employee> search(String query, UUID departmentId, EmploymentStatus status, PageRequest pageRequest) {
         return employees.search(query, departmentId, status, pageRequest);
+    }
+
+    public PageResult<Employee> search(
+            String query, UUID departmentId, EmploymentStatus status, boolean activeOnly, PageRequest pageRequest) {
+        return employees.search(query, departmentId, status, activeOnly, pageRequest);
     }
 
     public void delete(UUID id) {

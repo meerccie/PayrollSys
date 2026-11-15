@@ -86,6 +86,19 @@ Roles: `ADMIN`, `HR`, `EMPLOYEE`.
 
 ---
 
+## Coding Standards
+
+- **TypeScript (`frontend`)**:
+  - Use **strict explicit types** everywhere (`strict: true`, `noImplicitAny: true`, `strictNullChecks: true`, `noImplicitReturns: true`, `noUncheckedIndexedAccess: true`, `allowJs: false`).
+  - **Never use `any`** (explicit or implicit). Use named `interface` / `type` definitions, discriminated unions, generics, or `unknown` with explicit type guards.
+  - Type all component props, query responses (`apiFetch<T>`), mutation payloads, and event handlers explicitly.
+  - Reuse shared UI primitives in `frontend/src/components/ui.tsx` so controls, status badges, skeletons, alerts, and empty states remain consistent across screens.
+- **Java (`backend`)**:
+  - Respect Clean Architecture boundaries (`payroll-domain` has zero framework/Spring/JPA dependencies; `payroll-application` depends only on `payroll-domain`), enforced by `ArchitectureTest` (ArchUnit).
+  - Use `Money` (`BigDecimal`, scale `2`, `HALF_UP`) for all monetary arithmetic.
+
+---
+
 ## Verification
 
 - **Backend**:
